@@ -209,7 +209,7 @@ class AuroraDataAPICursor:
         try:
             err_res = self._client.execute_statement(**self._prepare_execute_args("SHOW ERRORS"))
             err_info = self._render_response(err_res)["records"][-1]
-            return DatabaseError(MySQLErrorCodes(err_info[1]), err_info[2])
+            return DatabaseError(MySQLErrorCodes(err_info[1]).value, err_info[2])
         except self._client.exceptions.BadRequestException:
             return DatabaseError(original_error)
 
