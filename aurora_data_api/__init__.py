@@ -92,7 +92,10 @@ class AuroraDataAPIClient:
 
 
 class AuroraDataAPICursor:
-    _pg_type_map = {
+    # Map from the database type name to the python type name.
+    # the database type name is the value returned in the data api under
+    #     >>> response['columnMetadata'][i][]typeName']
+    _db_type_map = {
         "int": int,
         "int2": int,
         "int4": int,
@@ -120,6 +123,7 @@ class AuroraDataAPICursor:
         "numeric": Decimal,
         "decimal": Decimal
     }
+    # Map from python value type name to the type used by data api.
     _data_api_type_map = {
         bytes: "blobValue",
         bool: "booleanValue",
@@ -129,8 +133,20 @@ class AuroraDataAPICursor:
         Decimal: "stringValue"
         # list: "arrayValue"
     }
+    # Map from python value type to the type hint to be supplied to the data api.
     _data_api_type_hint_map = {
         Decimal: "DECIMAL"
+    }
+    # Map from database type name (same as _db_type_map) to a callable which
+    # casts the value returned by the data api into a python value.
+    # Defaults to no casting if value not found in map.
+    _db_type_cast_map = {
+
+        # MySQL datetime.
+        # Sometimes returns decimal seconds, sometimes doesn't.
+        "DATETIME": lambda x: datetime.datetime.strptime(
+            x, '%Y-%m-%d %H:%M:%S' + ('.%f' if '.' in x else ''))
+
     }
 
     def __init__(self, client=None, dbname=None, aurora_cluster_arn=None, secret_arn=None, transaction_id=None):
@@ -169,8 +185,8 @@ class AuroraDataAPICursor:
         # see https://www.postgresql.org/docs/9.5/datatype.html
         self.description = []
         for column in column_metadata:
-            col_desc = ColumnDescription(name=column["name"],
-                                         type_code=self._pg_type_map.get(column["typeName"], str))
+            col_desc = ColumnDescription(
+                name=column["name"], type_code=self._db_type_map.get(column["typeName"], str))
             self.description.append(col_desc)
 
     def _start_paginated_query(self, execute_statement_args, records_per_page=None):
@@ -266,19 +282,26 @@ class AuroraDataAPICursor:
     def _render_response(self, response):
         if "records" in response:
             for i, record in enumerate(response["records"]):
-                response["records"][i] = tuple(self._render_value(v) for v in response["records"][i])
+                response["records"][i] = tuple(
+                    self._render_value(v, meta.get('typeName'))
+                    for v, meta in zip(response["records"][i], response['columnMetadata'])
+                )
         return response
 
-    def _render_value(self, value):
+    def _render_value(self, value, db_type=None):
         if value.get("isNull"):
             return None
         elif "arrayValue" in value:
             if "arrayValues" in value["arrayValue"]:
                 return [self._render_value(nested) for nested in value["arrayValue"]["arrayValues"]]
             else:
-                return list(value["arrayValue"].values())[0]
+                return self._cast_render_value(list(value["arrayValue"].values())[0], db_type)
         else:
-            return list(value.values())[0]
+            return self._cast_render_value(list(value.values())[0], db_type)
+
+    def _cast_render_value(self, value, db_type=None):
+        cast_func = self._db_type_cast_map.get(db_type, lambda x: x)
+        return cast_func(value)
 
     def scroll(self, value, mode="relative"):
         if not self._paging_state:
