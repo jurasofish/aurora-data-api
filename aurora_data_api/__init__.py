@@ -1,11 +1,30 @@
 """
 aurora-data-api - A Python DB-API 2.0 client for the AWS Aurora Serverless Data API
 """
-import os, datetime, ipaddress, uuid, time, random, string, logging, itertools, reprlib
+import os
+import datetime
+import ipaddress
+import uuid
+import time
+import random
+import string
+import logging
+import itertools
+import reprlib
 from decimal import Decimal
 from collections import namedtuple
-from .exceptions import (Warning, Error, InterfaceError, DatabaseError, DataError, OperationalError, IntegrityError,
-                         InternalError, ProgrammingError, NotSupportedError)
+from .exceptions import (
+    Warning,
+    Error,
+    InterfaceError,
+    DatabaseError,
+    DataError,
+    OperationalError,
+    IntegrityError,
+    InternalError,
+    ProgrammingError,
+    NotSupportedError
+)
 from .mysql_error_codes import MySQLErrorCodes
 import boto3
 
@@ -29,14 +48,22 @@ DATETIME = datetime.datetime
 ROWID = str
 DECIMAL = Decimal
 
-ColumnDescription = namedtuple("ColumnDescription", "name type_code display_size internal_size precision scale null_ok")
+ColumnDescription = namedtuple(
+    "ColumnDescription",
+    "name type_code display_size internal_size precision scale null_ok"
+)
 ColumnDescription.__new__.__defaults__ = (None,) * len(ColumnDescription._fields)
 
 logger = logging.getLogger(__name__)
 
 
 class AuroraDataAPIClient:
-    def __init__(self, dbname=None, aurora_cluster_arn=None, secret_arn=None, rds_data_client=None, charset=None):
+    def __init__(self,
+                 dbname=None,
+                 aurora_cluster_arn=None,
+                 secret_arn=None,
+                 rds_data_client=None,
+                 charset=None):
         self._client = rds_data_client
         if rds_data_client is None:
             self._client = boto3.client("rds-data")
