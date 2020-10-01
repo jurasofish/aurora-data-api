@@ -352,7 +352,8 @@ class AuroraDataAPICursor:
                 response["records"][i] = tuple(
                     self._render_value(v, meta.get("typeName"))
                     for v, meta in zip(
-                        response["records"][i], response["columnMetadata"]
+                        response["records"][i],
+                        response.get("columnMetadata", [{}] * len(response["records"][i]))
                     )
                 )
         return response
